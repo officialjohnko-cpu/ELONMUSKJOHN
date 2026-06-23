@@ -270,7 +270,7 @@ def show_banner(user_id, user_name):
     print(f"{C_WHITE}  👑 OWNER   : {C_YELLOW}@Elonmusk20606")
     print(f"{C_WHITE}  👤 USER    : {C_GREEN}{user_name}{C_RESET}")
     print(f"{C_WHITE}  🆔 USER ID : {C_CYAN}{user_id}{C_RESET}")
-    print(f"{C_WHITE}  🔥 SEASON  : {C_MAGENTA} SEASON 2 VIP USER ")
+    print(f"{C_WHITE}  🔥 SEASON  : {C_MAGENTA} SEASON 3 VIP USER ")
     print(f"{C_CYAN}🤖" + "═" * 58 + "🤖" + f"{C_RESET}\n")
 
 async def send_telegram_notification(session, message):
@@ -342,28 +342,28 @@ class RuijieLoginManager:
         return False
 
     async def _fetch_sid(self, session):
-        current_ip = self.ip if self.ip else "192.168.110.158"
+        current_ip = self.ip if self.ip else "192.168.110.38"
         current_gw = self.ip if self.ip else "192.168.110.1"
-        current_mac = self.mac if self.mac else "da:3b:e2:43:ca:e7"
+        current_mac = self.mac if self.mac else "98:ee:94:d3:e8:12"
         base_url = "https://portal-as.ruijienetworks.com/api/auth/wifidog"
         
         # Updated parameters with your provided URL data
         params = {
             "stage": "portal", 
-            "gw_id": "c4b25b2c6096", 
-            "gw_sn": "H1TB2WU000538",
+            "gw_id": "4c49684b38d4", 
+            "gw_sn": "H1U82VB011097",
             "gw_address": current_gw, 
             "gw_port": "2060", 
             "ip": current_ip, 
             "mac": current_mac,
             "slot_num": "16", 
-            "nasip": "192.168.1.250", 
+            "nasip": "192.168.1.104", 
             "ssid": "VLAN233", 
             "ustate": "0",
             "mac_req": "1", 
             "url": "http://192.168.0.1/", 
-            "chap_id": r"\243",
-            "chap_challenge": r"\330\323\377\244\174\166\021\234\301\124\370\171\015\155\360\016"
+            "chap_id": r"\272",
+            "chap_challenge": r"\135\334\201\065\203\146\062\205\142\344\227\245\301\043\054\146"
         }
         
         step1_url = f"{base_url}?{ '&'.join([f'{k}={quote(str(v))}' for k, v in params.items()]) }"
