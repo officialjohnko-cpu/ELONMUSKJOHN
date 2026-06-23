@@ -258,14 +258,14 @@ def show_banner(user_id, user_name):
  | |  | | | \ \| |__| | |__| | |  | | |\  |
  |_|  |_|_|  \_\\____/ \____/|_|  |_|_| \_|""")
     print(f"{C_CYAN}─" * 60)
-    print(rf"""{C_YELLOW}  ______ _      ____  _   _ __  __ _    _  _____ _  __
- |  ____| |    / __ \| \ | |  \/  | |  | |/ ____| |/ /
- | |__  | |   | |  | |  \| | \  / | |  | | (___ | ' / 
- |  __| | |   | |  | | . ` | |\/| | |  | |\___ \|  <  
- | |____| |___| |__| | |\  | |  | | |__| |____) | . \ 
- |______|______\____/|_| \_|_|  |_|\____/|_____/|_|\_\ """)
+    print(rf"""{C_YELLOW}   _____ ______           _____  ____  _   _   __ 
+  / ____|  ____|   /\    / ____|/ __ \| \ | | /_ |
+ | (___ | |__     /  \  | (___ | |  | |  \| |  | |
+  \___ \|  __|   / /\ \  \___ \| |  | | . ` |  | |
+  ____) | |____ / ____ \ ____) | |__| | |\  |  | |
+ |_____/|______/_/    \_\_____/ \____/|_| \_|  |_|""")
     print(f"{C_CYAN}─" * 60)
-    print(f"{C_WHITE}  ⚡ SYSTEM  : {C_MAGENTA}ALL RUIJIE ELONMUSK CODE")
+    print(f"{C_WHITE}  ⚡ SYSTEM  : {C_MAGENTA}ALL RUIJIE MRJOHN SEASON 1")
     print(f"{C_WHITE}  🌐 CHANNEL : {C_GREEN}https://t.me/npvvpnoldversion")
     print(f"{C_WHITE}  👑 OWNER   : {C_YELLOW}@Elonmusk20606")
     print(f"{C_WHITE}  👤 USER    : {C_GREEN}{user_name}{C_RESET}")
